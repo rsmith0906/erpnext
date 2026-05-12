@@ -7,7 +7,7 @@ This document catalogs every meaningful AI automation opportunity across ERPNext
 - **Tier**: autonomy level — see [Safety Framework](safety.md) for definitions
   - **T0** — Read-only / analytics / suggestion
   - **T1** — AI drafts, human approves every instance
-  - **T2** — AI acts autonomously under policy envelope (dollar/confidence thresholds), with continuous audit
+  - **T2** — AI acts autonomously under policy envelope (amount/confidence thresholds), with continuous audit
   - **T3** — Multi-step agent with scoped authority
 
 Read this as a menu, not a mandate. Pick use cases where `Value ≥ High` and where the `Tier` matches your organization's risk appetite.
@@ -34,9 +34,9 @@ These apply across all modules and are foundational — build them first.
 ### Document OCR and Ingestion (T1)
 **What**: Upload a vendor invoice PDF or image → AI extracts supplier, line items, amounts, tax, dates → creates a Draft Purchase Invoice → human reviews and submits.
 
-**How**: Multimodal LLM (Claude Sonnet with vision) extracts structured data. Validator matches supplier and items to existing master data. Draft Purchase Invoice created with `docstatus=0`.
+**How**: Multimodal LLM with vision extracts structured data. Validator matches supplier and items to existing master data. Draft Purchase Invoice created with `docstatus=0`.
 
-**Value**: H — eliminates manual data entry; typical saving 3–5 minutes per invoice at high volume.
+**Value**: H — eliminates manual data entry; material time saving per invoice at high volume.
 
 **Risk**: M — wrong amounts or accounts could post incorrectly if the human rubber-stamps. Mitigate with confidence thresholds and field-level highlighting of low-confidence extractions.
 
@@ -99,17 +99,17 @@ The Accounts module is where AI delivers the most value and carries the most ris
 
 **Progression**:
 - **T1**: AI suggests matches, human approves batch-wise
-- **T2**: Auto-match when confidence > 95% AND amount < $10K AND party has ≥3 prior confirmed matches
+- **T2**: Auto-match when confidence exceeds high threshold AND amount is below configurable cap AND party has sufficient prior confirmed matches
 
-**Value**: H — a typical mid-market company has 500–2000 bank transactions/month; 70–90% become zero-touch.
+**Value**: H — a typical mid-market company has many bank transactions; a large share can become zero-touch.
 
 **Risk**: M — wrong match causes misallocated payment, customer disputes. Reversible but embarrassing.
 
 **Safety controls**:
 - Auto-match threshold configurable per company
-- Daily audit report: all auto-matches from the previous day
-- Pattern must be evidenced by 3+ prior human-confirmed matches before it's used autonomously
-- Cooling period: new patterns require 30 days of T1 operation before escalating to T2
+- Recurring audit report: all auto-matches from the previous period
+- Pattern must be evidenced by sufficient prior human-confirmed matches before it's used autonomously
+- Cooling period: new patterns require extended T1 operation before escalating to T2
 
 ---
 
@@ -126,21 +126,21 @@ The Accounts module is where AI delivers the most value and carries the most ris
 
 **Progression**:
 - **T1**: AI matches; human approves each variance
-- **T2**: Auto-approve exact matches (qty and price) under $25K with no flagged anomalies
+- **T2**: Auto-approve exact matches (qty and price) below configurable cap with no flagged anomalies
 
-**Value**: H — AP teams spend 40–60% of their time on matching; this reclaims most of it.
+**Value**: H — AP teams spend a major share of their time on matching; this reclaims most of it.
 
-**Risk**: M — paying an incorrect invoice. Mitigated by dollar threshold and requiring PO/Receipt to already exist (AI cannot fabricate those).
+**Risk**: M — paying an incorrect invoice. Mitigated by amount threshold and requiring PO/Receipt to already exist (AI cannot fabricate those).
 
 **Safety controls**:
 - Threshold tuning per supplier (trusted suppliers higher, new suppliers lower)
-- Monthly variance report reviewed by Controller
+- Recurring variance report reviewed by Controller
 - Statistical backtest required before enabling T2
 
 ---
 
 ### 3. Journal Entry Account Classification (T1)
-**What**: User describes a transaction in natural language ("moved $5,000 from operating to payroll for April bonus accrual") → AI proposes the correct debit/credit accounts and dimensions.
+**What**: User describes a transaction in natural language ("moved operating cash to payroll for bonus accrual") → AI proposes the correct debit/credit accounts and dimensions.
 
 **Current state**: Users must know Chart of Accounts structure.
 
@@ -156,18 +156,18 @@ The Accounts module is where AI delivers the most value and carries the most ris
 
 **Safety controls**:
 - AI cannot set `docstatus=1`; only populates Draft fields
-- Bootstrapping requires minimum 50 approved past entries before activation
+- Bootstrapping requires a sufficient number of approved past entries before activation
 
 ---
 
 ### 4. Cash Flow Forecasting (T0)
-**What**: Predict cash position 30/60/90 days out using AR aging, AP aging, payment pattern history, seasonal trends.
+**What**: Predict cash position at rolling horizons using AR aging, AP aging, payment pattern history, seasonal trends.
 
 **Current state**: Static report based on scheduled dates.
 
 **AI enhancement**:
-- Learn actual payment patterns per customer (e.g., "Customer X pays 15 days past due consistently")
-- Scenario modeling ("what if our largest customer delays by 30 days?")
+- Learn actual payment patterns per customer (e.g., "Customer X pays consistently past due")
+- Scenario modeling ("what if our largest customer delays significantly?")
 - Alert when forecast crosses danger thresholds
 
 **Value**: H — actionable CFO intelligence.
@@ -222,16 +222,16 @@ The Accounts module is where AI delivers the most value and carries the most ris
 
 **Progression**:
 - **T1**: AI suggests account; user approves each
-- **T2**: Auto-post for high-confidence matches below $500
+- **T2**: Auto-post for high-confidence matches below configurable amount cap
 
 **Value**: H.
 
 **Risk**: M — misclassified expenses distort P&L and tax deductibility.
 
 **Safety controls**:
-- Month-end reclassification workflow if categories shift
-- Per-category accuracy SLA (>95% on audit sample)
-- User feedback ("wrong category") retrains monthly
+- Period-end reclassification workflow if categories shift
+- Per-category accuracy SLA on audit sample
+- User feedback ("wrong category") retrains regularly
 
 ---
 
@@ -257,11 +257,11 @@ The Accounts module is where AI delivers the most value and carries the most ris
 ---
 
 ### 9. Fraud Detection (T0)
-**What**: Detect patterns suggesting fraud: duplicate invoices with slight variations, new vendor with first invoice > $50K, rapid AP changes, unusual weekend postings, round-number anomalies.
+**What**: Detect patterns suggesting fraud: duplicate invoices with slight variations, new vendor with an unusually large first invoice, rapid AP changes, unusual weekend postings, round-number anomalies.
 
 **AI enhancement**: ML classifier on historical fraud cases + rules library + anomaly scoring.
 
-**Value**: H — single caught incident can pay for the AI system for years.
+**Value**: H — a single caught incident can justify the AI program many times over.
 
 **Risk**: L — advisory only; escalates to SOC/Internal Audit.
 
@@ -278,7 +278,7 @@ The Accounts module is where AI delivers the most value and carries the most ris
 - Drafts closing journal entries
 - Generates preliminary variance commentary
 
-**Value**: H — compresses 5-day close to 2–3 days.
+**Value**: H — materially compresses the close cycle.
 
 **Risk**: M — errors in close are highly visible.
 
@@ -290,7 +290,7 @@ The Accounts module is where AI delivers the most value and carries the most ris
 ---
 
 ### 11. Financial Narrative Generation (T1)
-**What**: Generate the narrative portion of management reports — "Revenue increased 12% driven by Q2 SaaS renewals, offset by 8% increase in cloud infrastructure costs."
+**What**: Generate the narrative portion of management reports — "Revenue increased driven by SaaS renewals, offset by higher cloud infrastructure costs."
 
 **AI enhancement**: Analyze variance report, identify drivers, write commentary in house style.
 
@@ -345,7 +345,7 @@ The Accounts module is where AI delivers the most value and carries the most ris
 ## Stock Module
 
 ### 16. Demand Forecasting per SKU (T0)
-**What**: Predict demand 30/60/90/180 days out per (item, warehouse) pair using historical sales, seasonality, promotions, market factors.
+**What**: Predict demand at rolling horizons per (item, warehouse) pair using historical sales, seasonality, promotions, market factors.
 
 **AI enhancement**: Time-series model (Prophet-style or LSTM) trained per SKU family. Feeds into `Reorder Rule` and `Material Request Plan Item`.
 
@@ -362,18 +362,18 @@ The Accounts module is where AI delivers the most value and carries the most ris
 
 **Current state**: Static per-item thresholds.
 
-**AI enhancement**: Compute optimal safety stock and reorder point per SKU monthly.
+**AI enhancement**: Compute optimal safety stock and reorder point per SKU on a recurring basis.
 
 **Value**: H.
 
 **Risk**: L.
 
-**Safety controls**: Inventory manager approves threshold changes quarterly (or auto-accept small changes within ±20%).
+**Safety controls**: Inventory manager approves threshold changes periodically (or auto-accept small changes within a configurable band).
 
 ---
 
 ### 18. Obsolescence and Slow-Moving Detection (T0)
-**What**: Identify items not sold in X days, items with declining velocity, items whose variant is trending while base is declining.
+**What**: Identify items not sold in an extended period, items with declining velocity, items whose variant is trending while base is declining.
 
 **Value**: H — reclaim warehouse capital.
 
@@ -612,7 +612,7 @@ The Accounts module is where AI delivers the most value and carries the most ris
 ---
 
 ### 41. Sales Forecast per Customer (T0)
-**What**: Predict next-90-day revenue per customer based on order patterns.
+**What**: Predict near-term revenue per customer based on order patterns.
 
 **Value**: H.
 

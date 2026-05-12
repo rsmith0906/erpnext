@@ -33,13 +33,13 @@ No AI should have unlimited authority to act on financial state. Every AI capabi
 ### Tier 2 — Conditional Autonomy
 **AI can submit documents without per-transaction human review, but only within a tightly constrained policy envelope.**
 
-- Dollar thresholds, confidence thresholds, and pattern-based preconditions gate each action
+- Amount thresholds, confidence thresholds, and pattern-based preconditions gate each action
 - Every action written to `AI Audit Log` with full reasoning
 - Policy envelope is reviewed and approved by a human governance body (Controller, Compliance, Security)
 - Continuous monitoring with automatic de-escalation on error rate spikes
-- Examples: auto-matching bank transactions under $10K with 95%+ confidence; auto-categorizing recurring expenses under $500
+- Examples: auto-matching bank transactions below a configurable amount threshold with sufficient confidence; auto-categorizing recurring expenses below a configurable amount threshold
 
-**Approval overhead**: Policy approval once per envelope, not per transaction. Monthly policy review mandatory.
+**Approval overhead**: Policy approval once per envelope, not per transaction. Regular policy review mandatory.
 
 ### Tier 3 — Agent Systems
 **AI orchestrates multi-step workflows, invoking Tier 0/1/2 capabilities in sequence.**
@@ -65,28 +65,30 @@ Regardless of tier, no AI may:
 
 ---
 
-## Pillar 2: Dollar Thresholds
+## Pillar 2: Amount Thresholds
 
-For any Tier 2 capability, **dollar thresholds gate autonomy**. Even a 99%-confidence match must route to human review if the amount is material.
+For any Tier 2 capability, **amount thresholds gate autonomy**. Even a very-high-confidence match must route to human review if the amount is material.
 
 ### Default Threshold Schedule
 
+Per-capability thresholds are defined as customer-configurable bands:
+
 | Transaction type | Auto-approve below | Single human review | Dual approval required |
 |------------------|-------------------|---------------------|------------------------|
-| Bank reconciliation match | $10,000 | $10K–$100K | > $100K |
-| AP 3-way match | $25,000 | $25K–$250K | > $250K |
-| Expense categorization | $500 | $500–$5K | > $5K |
-| PO creation | $5,000 | $5K–$50K | > $50K |
-| Journal Entry (non-close) | $1,000 | $1K–$25K | > $25K |
-| Credit limit change | 10% change | 10–25% | > 25% |
-| Price adjustment | 5% change | 5–15% | > 15% |
+| Bank reconciliation match | low band | middle band | high band |
+| AP 3-way match | low band | middle band | high band |
+| Expense categorization | low band | middle band | high band |
+| PO creation | low band | middle band | high band |
+| Journal Entry (non-close) | low band | middle band | high band |
+| Credit limit change | small % change | moderate % change | large % change |
+| Price adjustment | small % change | moderate % change | large % change |
 
-Thresholds are **per-company configurable**. Defaults should err conservative and tighten, never loosen, over time.
+Thresholds are **per-company configurable**. Defaults should err conservative and tighten, never loosen, over time. Specific band values are set in policy.
 
 ### Materiality Override
 
 Regardless of the default schedule, any posting that would:
-- Move the trial balance by > 1% of monthly revenue
+- Move the trial balance by a material share of monthly revenue
 - Trigger a regulatory reporting threshold
 - Cross a covenant limit in any loan agreement
 - Exceed any insurance policy coverage
@@ -95,11 +97,11 @@ Regardless of the default schedule, any posting that would:
 
 ### Aggregate Limits
 
-Per-AI-account daily/monthly aggregate limits prevent "a thousand paper cuts":
+Per-AI-account aggregate limits prevent "a thousand paper cuts":
 
 - Daily aggregate posting limit per AI policy envelope
-- Monthly aggregate posting limit per AI policy envelope
-- Alert thresholds at 50%, 75%, 90% of limit
+- Periodic aggregate posting limit per AI policy envelope
+- Alert thresholds at defined utilization milestones
 
 ---
 
@@ -109,11 +111,11 @@ Every AI output carries a confidence score — a calibrated probability that the
 
 ### Requirements
 
-- Confidence must be **calibrated**: "90% confidence" means the AI is right 90% of the time across a representative sample
-- Calibration is verified quarterly against real outcomes (user acceptance rate, post-hoc correctness)
+- Confidence must be **calibrated**: the reported probability matches the empirical accuracy across a representative sample
+- Calibration is verified regularly against real outcomes (user acceptance rate, post-hoc correctness)
 - Confidence below threshold auto-routes to Tier 1 (human review) regardless of policy envelope
-- Default minimum confidence for Tier 2: 95%
-- Confidence for financial decisions: 98%+ for Tier 2
+- Default minimum confidence for Tier 2 is high
+- Confidence for financial decisions is higher still
 
 ### Sources of Confidence
 
@@ -125,7 +127,7 @@ Confidence can come from:
 
 ### Confidence Cannot Replace Thresholds
 
-High confidence never overrides dollar thresholds. Low confidence always overrides tier autonomy (escalates to human). This is a **one-way gate**: confidence can only constrain, never expand, authority.
+High confidence never overrides amount thresholds. Low confidence always overrides tier autonomy (escalates to human). This is a **one-way gate**: confidence can only constrain, never expand, authority.
 
 ---
 
@@ -188,7 +190,7 @@ class AIAuditLog(Document):
 ### Retention
 
 - AI Audit Log entries are retained per regulatory schedule:
-  - SOX controls: 7 years
+  - SOX controls: per retention schedule
   - GDPR personal data: per data retention policy
   - Tax authority: per jurisdiction
 - Entries are **never deleted**, only archived to cold storage
@@ -196,11 +198,11 @@ class AIAuditLog(Document):
 
 ### Queryability
 
-Audit queries an auditor must be able to answer in under 60 seconds:
-- "Show me every AI-assisted Sales Invoice over $50K in Q2"
-- "What was the confidence distribution of bank reconciliation auto-matches last month?"
-- "Which AI capability had the highest rejection rate last quarter?"
-- "Show the exact prompt, input, and output for AI Audit Log entry #12345"
+Audit queries an auditor must be able to answer quickly:
+- "Show me every AI-assisted Sales Invoice over a defined amount in a given period"
+- "What was the confidence distribution of bank reconciliation auto-matches in a given period?"
+- "Which AI capability had the highest rejection rate in a given period?"
+- "Show the exact prompt, input, and output for a specific AI Audit Log entry"
 - "Which user approved AI-proposed Journal Entry X?"
 
 ### Separation from GL
@@ -257,6 +259,8 @@ Before any AI feature goes live:
 - SoD matrix documented: which AI roles, which actions, which exclusions
 - Reviewed by Internal Audit
 - Automated test suite validates AI cannot perform excluded actions (negative tests)
+
+Notes: segregation requires verification of ERPNext's existing permission bypass paths (see findings).
 
 ---
 
@@ -315,20 +319,20 @@ AI features require more rigorous validation than deterministic code.
 
 Before any Tier 1+ capability goes live:
 
-1. **Golden dataset**: 200+ labeled historical examples covering normal and edge cases
-2. **Accuracy SLA**: Capability must achieve defined accuracy on golden set (typical: 95%+ for T1, 99%+ for T2)
-3. **Adversarial testing**: Red-team attempts to trick the AI (prompt injection, malformed inputs, edge cases)
-4. **Bias testing**: For decisions affecting parties (credit, hiring, supplier selection)
-5. **Backtest on historical data**: Replay 6+ months of history; compare AI decisions to what humans actually did
-6. **Shadow mode**: Run for 30 days without acting; compare to human decisions; verify accuracy
-7. **Gradual rollout**: 1% → 10% → 50% → 100% of eligible transactions, with kill-switch at each step
+1. **Golden dataset**: a substantial set of labeled historical examples covering normal and edge cases
+2. **Accuracy SLA**: capability must achieve defined accuracy on the golden set (typically higher for T2 than T1)
+3. **Adversarial testing**: red-team attempts to trick the AI (prompt injection, malformed inputs, edge cases)
+4. **Bias testing**: for decisions affecting parties (credit, hiring, supplier selection)
+5. **Backtest on historical data**: replay an extended history; compare AI decisions to what humans actually did
+6. **Shadow mode**: run for an extended period without acting; compare to human decisions; verify accuracy
+7. **Gradual rollout**: escalating traffic share of eligible transactions, with kill-switch at each step
 
 ### Ongoing Validation
 
-- **Weekly accuracy reports** for T1/T2 capabilities
-- **Monthly drift detection**: flag when input distribution changes materially
-- **Quarterly re-validation**: re-run golden dataset; verify accuracy has not degraded
-- **Annual comprehensive review**: model replacement, policy re-approval
+- **Regular accuracy reports** for T1/T2 capabilities
+- **Scheduled drift detection**: flag when input distribution changes materially
+- **Periodic re-validation**: re-run golden dataset; verify accuracy has not degraded
+- **Comprehensive review**: model replacement, policy re-approval
 
 ### Failure Modes
 
@@ -369,7 +373,7 @@ def redact_for_external_llm(doc, fields_to_send):
         if is_pii_field(field):
             safe[field] = pseudonymize(value, session_key)
         elif is_financial_amount(field):
-            safe[field] = bucketize(value)  # "$10K-$25K" instead of "$14,327"
+            safe[field] = bucketize(value)  # banded range instead of exact amount
         else:
             safe[field] = value
     return safe
@@ -388,7 +392,7 @@ For high-sensitivity deployments, use a locally-hosted model (Llama, Qwen, etc.)
 A single admin-accessible setting, `Stop All AI`, disables every AI capability immediately system-wide.
 
 - Accessible via `AI Settings` (singleton DocType)
-- Takes effect within 60 seconds (all AI workers check this flag on each invocation)
+- Takes effect promptly (all AI workers check this flag on each invocation)
 - Used for incident response, regulatory halts, suspected compromise, or model provider outages
 
 ### Per-Capability Disable
@@ -431,9 +435,9 @@ Composed of:
 - Approve new AI capabilities before deployment
 - Approve tier escalations (T1 → T2)
 - Approve AI policy envelopes and thresholds
-- Review monthly audit reports
+- Review recurring audit reports
 - Respond to incidents
-- Annual framework review
+- Periodic framework review
 
 ### Policy as Code
 
@@ -473,8 +477,8 @@ class AIPolicy(Document):
 
     # Monitoring
     current_daily_aggregate: DF.Currency    # Computed
-    current_monthly_aggregate: DF.Currency  # Computed
-    accuracy_last_30d: DF.Float            # From outcome reviews
+    current_period_aggregate: DF.Currency   # Computed
+    recent_accuracy: DF.Float              # From outcome reviews
     auto_suspend_on_accuracy_below: DF.Float
 
     # Review
@@ -529,7 +533,7 @@ How this framework addresses specific regulatory requirements:
 A deployment passes safety review if and only if, for every AI capability:
 
 1. ☐ Tier assigned and documented
-2. ☐ Dollar thresholds configured (if Tier 2+)
+2. ☐ Amount thresholds configured (if Tier 2+)
 3. ☐ Confidence scoring calibrated and tested
 4. ☐ AI Audit Log writes verified
 5. ☐ AI service account scoped via dedicated User + Role Profile

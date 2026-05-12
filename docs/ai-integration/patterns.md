@@ -243,11 +243,9 @@ def _pseudonymize(value):
     return f"<redacted:{h[:8]}>"
 
 def _bucket_amount(amount):
-    if amount < 1000: return "<$1K"
-    if amount < 10000: return "$1K-$10K"
-    if amount < 100000: return "$10K-$100K"
-    if amount < 1000000: return "$100K-$1M"
-    return ">$1M"
+    """Map an amount to a configured banded label.
+    Bands are defined in AI Settings; exact boundaries are operational config."""
+    return classify_into_configured_band(amount)
 ```
 
 ---
@@ -471,14 +469,14 @@ Raw model confidence is often overconfident. Calibrate periodically:
 # erpnext/ai_integration/calibration.py
 
 def calibrate_confidence(capability_name):
-    """Run weekly to recalibrate confidence scores against outcomes."""
-    # Get last 30 days of audit log entries with outcomes
+    """Run on a schedule to recalibrate confidence scores against outcomes."""
+    # Get recent audit log entries with outcomes
     entries = frappe.get_all(
         "AI Audit Log",
         filters={
             "capability": capability_name,
             "outcome": ["in", ["applied", "rejected", "modified"]],
-            "timestamp": [">", add_days(today(), -30)],
+            "timestamp": [">", add_days(today(), -CALIBRATION_WINDOW_DAYS)],
         },
         fields=["confidence", "outcome"],
     )
@@ -539,7 +537,7 @@ def enqueue_for_review(
     review.priority = _determine_priority(proposal, cap)
     review.sla_deadline = add_hours(
         now_datetime(),
-        cap.review_sla_hours or 24
+        cap.review_sla_hours or DEFAULT_REVIEW_SLA_HOURS
     )
     review.assigned_role = cap.default_review_role
     review.status = "Pending"
@@ -677,32 +675,32 @@ class TestBankMatchGolden(FrappeTestCase):
 
 ---
 
-## Pattern 13: Cost Tracking
+## Pattern 13: Spend Tracking
 
 ```python
-# erpnext/ai_integration/cost.py
+# erpnext/ai_integration/spend.py
 
-def record_cost(model_id, input_tokens, output_tokens, cached_tokens=0):
-    """Track token consumption per capability for cost monitoring."""
+def record_spend(model_id, input_tokens, output_tokens, cached_tokens=0):
+    """Track token consumption per capability for spend monitoring."""
     rates = _get_rates(model_id)
 
-    cost_usd = (
+    spend = (
         (input_tokens - cached_tokens) * rates.input_per_token +
         cached_tokens * rates.cached_per_token +
         output_tokens * rates.output_per_token
     )
 
-    # Update this month's spend on Model Configuration
+    # Update current-period spend on Model Configuration
     frappe.db.sql("""
         UPDATE `tabAI Model Configuration`
-        SET current_month_spend = current_month_spend + %s
+        SET current_spend = current_spend + %s
         WHERE model_id = %s
-    """, (cost_usd, model_id))
+    """, (spend, model_id))
 
     # Check budget alerts
     config = frappe.get_cached_doc("AI Model Configuration", model_id)
-    utilization = config.current_month_spend / config.monthly_budget_usd
-    if utilization > 0.75 and not _already_alerted(config.name, 0.75):
+    utilization = config.current_spend / config.budget_cap
+    if utilization > config.alert_threshold and not _already_alerted(config.name, config.alert_threshold):
         _send_budget_alert(config.name, utilization)
 ```
 
@@ -716,13 +714,13 @@ def record_cost(model_id, input_tokens, output_tokens, cached_tokens=0):
 @frappe.whitelist()
 def rollback_recent_ai_actions(
     capability: str,
-    hours: float,
+    lookback_hours: float,
     dry_run: bool = True,
 ) -> dict:
-    """Admin tool: cancel all AI-submitted documents in the last N hours."""
+    """Admin tool: cancel AI-submitted documents within the configured lookback window."""
     _require_admin()
 
-    since = add_hours(now_datetime(), -hours)
+    since = add_hours(now_datetime(), -lookback_hours)
     actions = frappe.get_all(
         "AI Audit Log",
         filters={
@@ -810,7 +808,7 @@ erpnext_ai.record_feedback = function(audit_log_ref, rating, comments) {
 };
 ```
 
-Feedback is logged, analyzed weekly, and used to:
+Feedback is logged, analyzed on a schedule, and used to:
 - Improve prompts
 - Flag drifting capabilities
 - Update calibration maps
@@ -828,13 +826,13 @@ Before a new AI capability merges to production:
 - ☐ Service account created with minimum-required roles
 - ☐ Redaction rules defined for capability-specific PII
 - ☐ Policy template created if Tier 2+
-- ☐ Golden dataset of 200+ cases
+- ☐ Golden dataset of sufficient size and coverage
 - ☐ Accuracy SLA met on golden dataset
 - ☐ Adversarial test cases included (prompt injection, malformed inputs)
-- ☐ Shadow mode tested for 30+ days
+- ☐ Shadow mode tested for an extended period
 - ☐ UI suggestion pattern implemented (if user-visible)
 - ☐ Review queue integration (if Tier 1+)
-- ☐ Cost estimate and budget impact documented
+- ☐ Spend impact documented
 - ☐ Fail-open behavior tested (kill switch, LLM error)
 - ☐ Calibration map initialized
 - ☐ Documentation for auditors: what this capability does, why, how

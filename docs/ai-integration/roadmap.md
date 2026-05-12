@@ -1,12 +1,12 @@
 # Implementation Roadmap
 
-An 18-month phased delivery plan for AI-integrating ERPNext. Each phase has defined scope, success criteria, gating conditions, and investment profile.
+A phased delivery sequence for AI-integrating ERPNext. Each phase has defined scope, success criteria, and gating conditions. No schedule or budget is specified here — those belong in a separate program-management artifact derived from customer-specific constraints (team composition, organizational readiness, regulatory scope, volume).
 
-**Philosophy**: earn trust before taking autonomy. Start read-only, graduate to human-reviewed drafts, then to policy-bound autonomy, then to agents. Never skip phases.
+**Philosophy**: earn trust before taking autonomy. Start read-only, graduate to human-reviewed drafts, then to policy-bound autonomy, then to orchestrated workflows. Never skip phases.
 
 ---
 
-## Phase 0: Foundation (Weeks 1–6)
+## Phase 0: Foundation
 
 **Goal**: Build the infrastructure that every AI capability will depend on. Ship nothing user-facing yet.
 
@@ -18,20 +18,19 @@ An 18-month phased delivery plan for AI-integrating ERPNext. Each phase has defi
 4. **LLM client library** — with retry, timeout, circuit breaker, cost tracking
 5. **PII redaction layer** — with per-field rules
 6. **Vector store** — deployed and integrated
-7. **Embedding pipeline** — nightly batch + on-change incremental
+7. **Embedding pipeline** — scheduled batch + on-change incremental
 8. **Observability stack** — dashboards, alerts, cost monitoring
 9. **AI service account model** — Frappe Users + Role Profiles for each capability
 10. **Incident response runbook**
 
 ### Success Criteria
 
-- ☐ Kill switch demo: flip flag, verify all AI workers halt within 60s
-- ☐ Audit log demo: run a test invocation, verify entry written with full provenance
-- ☐ PII redaction demo: sample payload shows redactions applied before LLM call
-- ☐ Fail-open demo: LLM provider returns 500, user save completes successfully
-- ☐ Budget alert: hit 75% of monthly budget in test, verify alert fires
-- ☐ Tenant isolation: verify vector search never returns cross-tenant data
-- ☐ Cost <$500 in Phase 0 infrastructure testing
+- Kill switch demo: flip flag, verify all AI workers halt promptly
+- Audit log demo: run a test invocation, verify entry written with full provenance
+- PII redaction demo: sample payload shows redactions applied before external calls
+- Fail-open demo: LLM provider returns error, user save completes successfully
+- Budget alert: hit threshold in test, verify alert fires
+- Tenant isolation: verify vector search never returns cross-tenant data
 
 ### Gating Conditions
 
@@ -39,322 +38,166 @@ An 18-month phased delivery plan for AI-integrating ERPNext. Each phase has defi
 - DPIA (Data Protection Impact Assessment) completed if in GDPR scope
 - AI Governance Committee formed with accountable owners
 
-### Investment Profile
-
-- **Team**: 2 backend engineers, 1 DevOps, 0.5 security engineer, 0.5 compliance
-- **Infrastructure**: vector store (~$200/mo at start), LLM test costs (~$100/mo), observability (existing)
-- **Duration**: 6 weeks
-
 ---
 
-## Phase 1: Read-Only AI (Months 2–3)
+## Phase 1: Read-Only AI
 
 **Goal**: Ship Tier 0 capabilities. Generate value with zero financial-state write risk. Build user familiarity.
 
 ### Capabilities
 
-1. **Natural-Language ERPNext Query** (opp. #1)
-   - Query bar in Desk: "What was our gross margin by product line in Q2?"
-   - LLM translates to report parameters
-   - Runs under asking user's permissions
-   - Returns formatted table + chart
-
-2. **Anomaly Detection over GL and Stock** (opp. #3, #9)
-   - Background job scans new GL Entries and Stock Ledger Entries
-   - Flags unusual amounts, accounts, patterns
-   - Items go to an "Anomaly Review Queue"
-   - No blocking of normal operations
-
-3. **Fraud Detection** (opp. #9)
-   - Dedicated queue for suspected fraud patterns
-   - Duplicate invoice detection, unusual vendor activity, weekend postings
-   - Routes to Internal Audit workspace
-
-4. **Knowledge-Base Copilot** (cross-cutting)
-   - Chat UI answering "how do I reverse a Journal Entry?"
-   - RAG over ERPNext docs + company SOPs
-   - Cites sources
-
-5. **Customer Lifetime Value and Churn Prediction** (opp. #37, #38)
-   - Dashboard showing top at-risk customers
-   - Predicted LTV by segment
-   - Drives sales and credit decisions
-
-6. **Inventory Anomalies** (opp. #18, #19)
-   - Slow-moving item detection
-   - Count variance flagging during Stock Reconciliation
-
-7. **Lead Scoring** (opp. #60)
-   - Every Lead scored 0–100
-   - Routing rules per score band
+1. **Natural-Language ERPNext Query** — constrained to curated approved reports
+2. **Anomaly Detection over GL and Stock** — advisory-only flagging
+3. **Fraud Detection** — dedicated queue separate from normal workflow
+4. **Knowledge-Base Copilot** — RAG over ERPNext docs + company SOPs
+5. **Customer Lifetime Value and Churn Prediction** — dashboards for sales and credit
+6. **Inventory Anomalies** — slow-moving detection and count variance flagging
+7. **Lead Scoring** — automatic with routing rules
 
 ### Success Criteria
 
-- ☐ Phase 0 gating holds up under real load
-- ☐ Natural-language query answers correctly on 95% of a 100-question golden set
-- ☐ Anomaly detection false-positive rate <20% after 30 days of tuning
-- ☐ 50%+ of eligible users have invoked AI features at least once
-- ☐ Zero incidents of data leakage, unauthorized access, or AI-caused financial error
-- ☐ Monthly LLM cost within budget
+- Phase 0 gating holds up under real load
+- Natural-language query accuracy meets approved target on golden set
+- Anomaly detection false-positive rate trending down after tuning period
+- Majority of eligible users have invoked AI features
+- Zero incidents of data leakage, unauthorized access, or AI-caused financial error
+- LLM cost within approved budget
 
 ### Gating to Phase 2
 
 - Clean audit log review by Internal Audit
-- User feedback neutral-to-positive (NPS ≥ 0)
+- User feedback neutral-to-positive
 - No open high-severity bugs
 - Compliance sign-off on expanding to T1
 
-### Investment
-
-- **Team**: 3 backend engineers, 1 frontend, 0.5 data scientist
-- **Duration**: 2 months
-- **LLM costs**: $500–$2K/month for mid-market volume
-
 ---
 
-## Phase 2: Human-in-the-Loop (Months 4–6)
+## Phase 2: Human-in-the-Loop
 
 **Goal**: Introduce Tier 1 capabilities. AI drafts and suggests; humans approve every action. Validate quality of AI output on financial workflows.
 
 ### Capabilities
 
-1. **Invoice OCR and Draft Creation** (cross-cutting)
-   - Email/upload inbound invoice → AI extracts → Draft Purchase Invoice
-   - AP clerk reviews and submits
-   - Confidence-weighted field highlighting in UI
-
-2. **Bank Reconciliation AI-Assisted Matching (T1)** (opp. #1)
-   - AI proposes matches with reasoning
-   - User reviews batch, approves in bulk or individually
-   - Target: 60–80% of suggested matches accepted without modification
-
-3. **AP Three-Way Match Assistance (T1)** (opp. #2)
-   - Per invoice: AI matches PO and Receipt lines
-   - Shows variances with explanation
-   - AP clerk accepts or escalates
-
-4. **Journal Entry Account Classification (T1)** (opp. #3)
-   - User describes transaction → AI proposes accounts
-   - User approves or adjusts
-   - Feeds back to retraining corpus
-
-5. **Expense Categorization (T1)** (opp. #7)
-   - Expense Claim uploads → AI suggests accounts
-   - Employee/approver reviews
-
-6. **Dunning Letter Personalization (T1)** (opp. #6)
-   - Generated letters per customer
-   - Collections agent reviews and sends
-
-7. **Customer Support Triage + Response Drafting (T1)** (opp. #72, #73)
-   - Incoming Issues classified and prioritized
-   - Initial responses drafted
-   - Agent reviews and sends
-
-8. **Quote Generation from RFP (T1)** (opp. #35)
-   - Paste RFP text → AI drafts Quotation
-   - Sales rep reviews, adjusts, submits
-
-9. **Email Drafting for Sales (T1)** (opp. #62)
-   - Draft personalized outreach
-   - Rep reviews before send
-
-10. **Contract Extraction (T1)** (opp. #29)
-    - Upload supplier contract → AI extracts terms
-    - Legal reviews
+1. **Invoice OCR and Draft Creation** — AP clerk reviews and submits
+2. **Bank Reconciliation AI-Assisted Matching (T1)** — batch review pattern
+3. **AP Three-Way Match Assistance (T1)** — variance explanation
+4. **Journal Entry Account Classification (T1)** — AI proposes, user approves
+5. **Expense Categorization (T1)** — suggestion-based
+6. **Dunning Letter Personalization (T1)** — collections agent reviews and sends
+7. **Customer Support Triage + Response Drafting (T1)** — agent reviews and sends
+8. **Quote Generation from RFP (T1)** — sales rep reviews and submits
+9. **Email Drafting for Sales (T1)** — rep reviews before send
+10. **Contract Extraction (T1)** — legal reviews extracted terms
 
 ### Success Criteria
 
-- ☐ Average AP clerk time per invoice drops from 4min to 90s
-- ☐ Bank recon throughput doubles
-- ☐ 70%+ of AI draft suggestions accepted without modification
-- ☐ User satisfaction NPS ≥ +20 on AI-enabled features
-- ☐ Zero AI-caused errors reaching submission (all caught in review)
-- ☐ Review queue SLAs met 95%+
+- AP clerk time per invoice materially reduced
+- Bank recon throughput materially improved
+- Majority of AI draft suggestions accepted without modification
+- Review queue SLAs consistently met
+- Zero AI-caused errors reaching submission (all caught in review)
 
 ### Gating to Phase 3
 
 - Accuracy baseline established for each capability (used for Tier 2 policy approval)
-- 30 days of zero-incident operation
+- Extended period of zero-incident operation
 - Review queue patterns well-understood
 - Statistical confidence in capability accuracy
 
-### Investment
-
-- **Team**: 4 backend, 2 frontend, 1 data scientist, 1 UX designer
-- **Duration**: 3 months
-- **LLM costs**: $2K–$8K/month
-
 ---
 
-## Phase 3: Conditional Autonomy (Months 7–12)
+## Phase 3: Conditional Autonomy
 
 **Goal**: Promote high-accuracy capabilities to Tier 2. AI acts autonomously within tight policy envelopes. Each escalation requires governance approval.
 
 ### Capabilities to Escalate (T1 → T2)
 
-1. **Bank Reconciliation Auto-Match (T2)** (opp. #1)
-   - Envelope: amount < $10K, confidence > 95%, 3+ prior confirmed matches for pattern
-   - Expected: 50–70% of all bank transactions auto-match
-
-2. **AP Three-Way Match Auto-Approve (T2)** (opp. #2)
-   - Envelope: exact match (qty + price), amount < $25K, supplier in "trusted" tier
-   - Expected: 40–60% of PO invoices auto-approved for payment
-
-3. **Recurring Expense Auto-Categorization (T2)** (opp. #7)
-   - Envelope: amount < $500, merchant/vendor seen ≥ 5 times, prior categorization consistent
-   - Expected: 70%+ of routine expense lines auto-categorized
+1. **Bank Reconciliation Auto-Match (T2)** — amount below configurable threshold; confidence above threshold; pattern has sufficient prior confirmed matches
+2. **AP Three-Way Match Auto-Approve (T2)** — exact match; amount below configurable threshold; supplier in "trusted" tier
+3. **Recurring Expense Auto-Categorization (T2)** — amount below configurable threshold; merchant/vendor seen sufficient prior times with consistent categorization
 
 ### New Capabilities at Tier 0/T1
 
-4. **Cash Flow Forecasting (T0)** (opp. #4)
-5. **Customer Payment Date Prediction (T0)** (opp. #5)
-6. **Dynamic Reorder Level Calculation (T1)** (opp. #17)
-7. **Demand Forecasting (T0)** (opp. #16)
-8. **Supplier Scorecard Enhancement (T0)** (opp. #26)
-9. **Purchase Price Anomaly Detection (T0)** (opp. #28)
-10. **Lead Time Prediction (T0)** (opp. #30)
-11. **Production Bottleneck Detection (T0)** (opp. #46)
-12. **Quality Pattern Analysis (T0)** (opp. #47)
-13. **Project Timeline Estimation (T0)** (opp. #53)
-14. **Resource Allocation Suggestions (T1)** (opp. #55)
-15. **Win/Loss Analysis (T0)** (opp. #65)
-16. **Call Transcription and CRM Updates (T1)** (opp. #64)
-17. **Pipeline Forecasting (T0)** (opp. #66)
-18. **Semantic Product Search on Portal (T0)** (opp. #77)
+4. **Cash Flow Forecasting (T0)**
+5. **Customer Payment Date Prediction (T0)**
+6. **Dynamic Reorder Level Calculation (T1)**
+7. **Demand Forecasting (T0)**
+8. **Supplier Scorecard Enhancement (T0)**
+9. **Purchase Price Anomaly Detection (T0)**
+10. **Lead Time Prediction (T0)**
+11. **Production Bottleneck Detection (T0)**
+12. **Quality Pattern Analysis (T0)**
+13. **Project Timeline Estimation (T0)**
+14. **Resource Allocation Suggestions (T1)**
+15. **Win/Loss Analysis (T0)**
+16. **Call Transcription and CRM Updates (T1)**
+17. **Pipeline Forecasting (T0)**
+18. **Semantic Product Search on Portal (T0)**
 
 ### Success Criteria
 
-- ☐ Each T2 escalation requires AI Governance Committee approval with policy envelope and SLA
-- ☐ Shadow mode ran 60+ days before T2 activation
-- ☐ Post-activation, AI accuracy within 2% of shadow-mode measurement
-- ☐ Policy envelope never breached (bug if it is)
-- ☐ Zero material financial errors from T2 capabilities
-- ☐ AP close cycle compressed 30%+
-- ☐ DSO (Days Sales Outstanding) reduced 5–10% via better collections
+- Each T2 escalation requires AI Governance Committee approval with policy envelope and SLA
+- Shadow mode run for an extended period before T2 activation
+- Post-activation, AI accuracy within small margin of shadow-mode measurement
+- Policy envelope never breached (bug if it is)
+- Zero material financial errors from T2 capabilities
 
 ### Gating Conditions
 
 Before any T1 → T2 promotion:
-- 90 days of T1 operation with accuracy ≥ 97% on golden dataset
-- 3 months of shadow-mode data demonstrating consistent quality
+- Extended period of T1 operation with accuracy meeting target on golden dataset
+- Shadow-mode data demonstrating consistent quality
 - Explicit Governance Committee approval
 - Rollback procedure tested
 - Monitoring dashboards with auto-demote triggers in place
 
-### Investment
-
-- **Team**: 5 backend, 2 frontend, 2 data scientists, 1 ML engineer, 1 UX
-- **Duration**: 6 months
-- **LLM costs**: $5K–$15K/month (growing with auto-action volume)
-
 ---
 
-## Phase 4: Agent Systems (Months 13–18)
+## Phase 4: Orchestrated Workflows
 
-**Goal**: Multi-step agents that orchestrate across capabilities. High value, highest complexity.
+**Goal**: Multi-step workflow orchestration across capabilities. Highest value, highest complexity. Framed as deterministic state machines with AI-augmented steps — not autonomous agents.
 
 ### Capabilities
 
-1. **Month-End Close Agent (T3)** (opp. #10)
-   - Orchestrates the close checklist
-   - Runs reconciliations, flags variances, drafts closing entries
-   - Requests Controller approval on each material item
-   - Generates preliminary close pack
-   - Target: 50% reduction in close cycle time
-
-2. **Customer Onboarding Agent (T3)** (opp. #43)
-   - Lead to Customer conversion
-   - KYC document collection
-   - Credit check workflow
-   - Initial setup automation
-   - Approvals gated per step
-
-3. **Procurement Agent (T2 + T3)**
-   - Monitors reorder signals
-   - Runs RFQ process
-   - Analyzes responses
-   - Drafts POs up to policy limits
-   - Tracks receipt and invoice match
-
-4. **Production Scheduling Agent (T2)** (opp. #44)
-   - Optimizes Work Order sequencing
-   - Balances workstation load
-   - Reacts to machine downtime
-   - Communicates changes to shop floor
-
-5. **Advanced Expense Categorization (T2)** (opp. #7 at scale)
-   - Higher thresholds with multi-signal confidence
-   - Self-improving from feedback loop
-
-6. **AI-Native Financial Narrative Generation (T1)** (opp. #11)
-   - Monthly MD&A draft
-   - Variance commentary
-   - KPI analysis
+1. **Month-End Close Orchestrator** — runs reconciliations, flags variances, drafts closing entries; Controller approves each material item
+2. **Customer Onboarding Workflow** — Lead to Customer conversion with KYC, credit check, setup
+3. **Procurement Workflow** — monitors reorder, runs RFQ, analyzes responses, drafts POs within policy
+4. **Production Scheduling Assistant** — optimizes Work Order sequencing with overrides preserved
+5. **Advanced Expense Categorization (T2)** — higher thresholds with multi-signal confidence
+6. **Financial Narrative Generation (T1)** — monthly commentary
 
 ### New Capabilities
 
-- Resume screening with bias audits (opp. #69)
-- Defect image classification (opp. #82)
-- Predictive maintenance (opp. #49)
-- Portal self-service chatbot (opp. #78)
-- Deeper regulatory compliance (tax code updates, etc.)
+- Resume screening with bias audits
+- Defect image classification
+- Predictive maintenance
+- Portal self-service chatbot
+- Deeper regulatory compliance
 
 ### Success Criteria
 
-- ☐ Month-end close: 5-day process → 2–3-day process
-- ☐ Close agent handles 80%+ of checklist items without human intervention
-- ☐ Customer onboarding time reduced 50%
-- ☐ Zero agent-caused incidents requiring regulatory notification
-- ☐ Customer deployment metrics: 20–35% finance team time reduction achieved
-
-### Gating to Expansion Beyond 18 Months
-
-- Comprehensive accuracy review across all Tier 2/3 capabilities
-- External security audit
-- Compliance re-certification
-- Customer reference accounts willing to be public references
-- Production stability: 99.9% AI availability
-
-### Investment
-
-- **Team**: 6 backend, 3 frontend, 3 data scientists, 2 ML engineers, 1 security, 1 compliance, 1 UX
-- **Duration**: 6 months
-- **LLM costs**: $10K–$30K/month at scale
+- Close cycle time materially reduced
+- Close orchestrator handles majority of checklist items without human intervention
+- Customer onboarding time materially reduced
+- Zero orchestrator-caused incidents requiring regulatory notification
 
 ---
 
-## Phase 5+: Continuous Evolution (Month 19+)
+## Phase 5+: Continuous Evolution
 
-After the initial 18-month build-out, the work shifts to:
+After the initial build-out, the work shifts to:
 
 ### Ongoing
-- **Model refresh cycle**: quarterly evaluation of new LLM releases
+- **Model refresh cycle**: regular evaluation of new LLM releases
 - **Capability expansion**: build out remaining opportunities from the catalog
 - **Cross-capability optimization**: share context, reduce duplicate calls
-- **Custom model training**: fine-tune or adapt local models on tenant data (opt-in)
+- **Custom model adaptation**: fine-tune or adapt local models on tenant data (opt-in)
 
 ### Strategic Extensions
-- **Industry vertical packages**: pre-configured AI policies for manufacturing, distribution, services, etc.
+- **Industry vertical packages**: pre-configured AI policies for manufacturing, distribution, services
 - **Multi-tenant benchmarking**: anonymized performance benchmarks across deployments (strict opt-in)
-- **Partner AI integrations**: connect to vertical-specific AI services (e.g., shipping rate optimizers, tax compliance services)
-- **Customer-specific agent development**: customers build their own AI capabilities using the framework
-
----
-
-## Resource Planning Summary
-
-| Phase | Duration | Team Size | Monthly Run-Rate Cost | Cumulative Cost |
-|-------|----------|-----------|----------------------|-----------------|
-| 0 | 6 weeks | 3.5 FTE | $35K (team) + $500 (infra) | $55K |
-| 1 | 2 months | 4.5 FTE | $50K + $2K | $160K |
-| 2 | 3 months | 8 FTE | $90K + $8K | $450K |
-| 3 | 6 months | 11 FTE | $120K + $15K | $1.26M |
-| 4 | 6 months | 16 FTE | $180K + $30K | $2.52M |
-
-Total 18-month investment: ~$2.5M for a ground-up build targeting a productized offering.
-
-For a single customer deployment of a pre-built platform, multiply the LLM run-rate (~$5K–$30K/month) by their volume and subtract the platform development cost — typically the customer pays a license + implementation, not the full R&D.
+- **Partner AI integrations**: connect to vertical-specific services
+- **Customer-specific capability development**: customers build their own using the framework
 
 ---
 
@@ -368,12 +211,12 @@ For a single customer deployment of a pre-built platform, multiply the LLM run-r
 | 1 | Users dismiss AI as unhelpful | UX polish; clear value demos per capability |
 | 2 | Draft quality requires heavy rework | Golden dataset gating; iterate prompts before broad rollout |
 | 3 | T2 escalation causes an incident | Shadow mode + governance approval + auto-demote triggers |
-| 4 | Agent complexity leads to unpredictable behavior | Agents orchestrate only T0/T1/T2 building blocks; no novel agent authority |
+| 4 | Workflow complexity leads to unpredictable behavior | Orchestrators use deterministic state machines; no novel autonomy |
 
 ### Non-Phase Risks
 
 - **LLM provider pricing changes**: multi-provider strategy; local model fallback
-- **Regulatory tightening (AI Act)**: explainability and human oversight already built in; easy compliance path
+- **Regulatory tightening**: explainability and human oversight already built in; easy compliance path
 - **Model quality regressions on upgrades**: pinned versions; re-validation gate
 - **Key personnel departures**: documentation standards; policy-as-code means knowledge lives in the system
 - **Data poisoning via compromised inputs**: input validation; circuit breakers; anomaly monitoring on AI behavior itself
@@ -421,19 +264,19 @@ Track these continuously across all phases:
 
 Three explicit go/no-go decision points along the roadmap:
 
-### Decision Point 1: End of Phase 1 (Month 3)
+### Decision Point 1: End of Phase 1
 **Question**: Does read-only AI deliver value without surprise risks?
 - If yes: proceed to Phase 2
 - If no: pause and remediate; deferred T1 rollout
 
-### Decision Point 2: End of Phase 2 (Month 6)
+### Decision Point 2: End of Phase 2
 **Question**: Is AI-drafted output consistently accurate enough to graduate to policy-bound autonomy?
 - If yes: proceed to Phase 3 with per-capability escalation approvals
 - If no: extend Phase 2; invest in accuracy improvements
 
-### Decision Point 3: End of Phase 3 (Month 12)
+### Decision Point 3: End of Phase 3
 **Question**: Have T2 capabilities operated without material incidents?
-- If yes: proceed to agent systems
+- If yes: proceed to orchestrated workflows
 - If no: solidify T2 capabilities before adding complexity
 
 Each decision point includes:
@@ -444,12 +287,12 @@ Each decision point includes:
 
 ---
 
-## The One-Year Elevator Pitch
+## The Pitch
 
 > ERPNext becomes an AI-native platform where:
 >
-> - The finance team closes the books 40% faster
-> - AP processes 70% of invoices with minimal human touch
+> - The finance team closes the books materially faster
+> - AP processes the bulk of invoices with minimal human touch
 > - Bank reconciliation auto-completes on most transactions
 > - Sales teams work AI-scored leads with drafted emails
 > - Inventory managers see demand forecasts, not just historical reports

@@ -54,7 +54,7 @@ Comprehensive analysis of how to AI-native this platform while preserving financ
 - [Opportunities Catalog](ai-integration/opportunities.md) — 80+ automations mapped to every module
 - [Safety Framework](ai-integration/safety.md) — 10 pillars of financial-grade AI safety
 - [Technical Architecture](ai-integration/architecture.md) — DocTypes, hooks, RAG, LLM selection
-- [18-Month Roadmap](ai-integration/roadmap.md) — Phased delivery plan with gates and budgets
+- [Roadmap](ai-integration/roadmap.md) — Phased delivery sequence with gating criteria
 - [Implementation Patterns](ai-integration/patterns.md) — Code patterns for building capabilities
 
 ## External Resources

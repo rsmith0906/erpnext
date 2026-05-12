@@ -229,8 +229,8 @@ class AIModelConfiguration(Document):
     # Limits
     max_requests_per_minute: DF.Int
     max_tokens_per_request: DF.Int
-    monthly_budget_usd: DF.Currency
-    current_month_spend: DF.Currency    # Tracked
+    budget_cap: DF.Currency             # Configured
+    current_spend: DF.Currency          # Tracked
 
     # Privacy
     data_can_leave_tenant: DF.Check
@@ -250,7 +250,7 @@ class AISettings(Document):
     default_timeout_seconds: DF.Int
 
     # Cost controls
-    monthly_budget_alert_threshold: DF.Percent
+    budget_alert_threshold: DF.Percent
 
     # UX
     show_ai_suggestions_by_default: DF.Check
@@ -258,7 +258,7 @@ class AISettings(Document):
 
     # Compliance
     require_pii_redaction: DF.Check     # Force-on for GDPR-scope tenants
-    audit_log_retention_years: DF.Int
+    audit_log_retention_period: DF.Data   # Per regulatory schedule
 ```
 
 ---
@@ -311,7 +311,7 @@ def pi_anomaly_check(doc, method=None):
             capability="pi_anomaly_check",
             input_data={"doc": doc.as_dict()},
             user=frappe.session.user,
-            timeout=5,  # seconds
+            timeout=SHORT_TIMEOUT,
         )
     except AIGuardrailTriggered as e:
         # Policy, threshold, or kill switch blocked — that's fine
@@ -384,7 +384,7 @@ A new Desk workspace aggregates:
 User opens a Purchase Invoice → AI runs anomaly detection during `validate` → warning added to document → user decides whether to proceed.
 
 ```
-User action ──▶ validate hook ──▶ dispatch_ai(capability, timeout=5s)
+User action ──▶ validate hook ──▶ dispatch_ai(capability, short timeout)
                                          │
                                          ▼
                                    Policy check (pass for T0)
@@ -399,7 +399,7 @@ User action ──▶ validate hook ──▶ dispatch_ai(capability, timeout=5s
                                    Return to user (non-blocking)
 ```
 
-**Timeout**: 5 seconds. Beyond that, abandon and let user continue without AI insight.
+**Timeout**: short. Beyond that, abandon and let user continue without AI insight.
 
 ### Pattern B: Draft Creation (T1)
 
@@ -427,7 +427,7 @@ Inbound email ──▶ webhook ──▶ background job
                              Notify AP clerk
 ```
 
-**Latency**: 30–60s acceptable (async). User never waits.
+**Latency**: async; user never waits.
 
 ### Pattern C: Policy-Driven Autonomy (T2)
 
@@ -444,9 +444,9 @@ Bank Transaction inserted ──▶ after_insert hook
                                    │
                                    ▼
                              Policy envelope check:
-                               - Amount < $10K?
-                               - Confidence > 95%?
-                               - Pattern has 3+ prior confirmed?
+                               - Amount below configurable cap?
+                               - Confidence above threshold?
+                               - Pattern has sufficient prior confirmed?
                                    │
                            ┌───────┴───────┐
                            │               │
@@ -495,14 +495,14 @@ Retrieval-Augmented Generation (RAG) is central to making AI outputs accurate an
 
 | Corpus | Source | Refresh |
 |--------|--------|---------|
-| Master data | `Item`, `Customer`, `Supplier`, `Account`, `Cost Center` | Nightly incremental |
+| Master data | `Item`, `Customer`, `Supplier`, `Account`, `Cost Center` | Scheduled incremental |
 | Chart of Accounts | `Account` tree | On change |
-| Historical transactions (sampled) | `Journal Entry`, `Sales Invoice`, `Purchase Invoice` | Monthly full refresh |
-| Prior AI matches (bank recon, OCR) | `AI Audit Log` with outcome=applied | Daily incremental |
+| Historical transactions (sampled) | `Journal Entry`, `Sales Invoice`, `Purchase Invoice` | Periodic full refresh |
+| Prior AI matches (bank recon, OCR) | `AI Audit Log` with outcome=applied | Scheduled incremental |
 | SOPs and documentation | Uploaded docs, ERPNext docs | On change |
 | Tax codes | `Item Tax Template`, `Tax Rule` | On change |
 | Reports catalog | Report metadata | On change |
-| Historical dunning letters (approved) | Sent communications | Weekly |
+| Historical dunning letters (approved) | Sent communications | Scheduled |
 | Contract templates | Uploaded docs | On change |
 
 ### Embedding Model Choice
@@ -532,7 +532,7 @@ Every embedded chunk carries metadata for access control and scoping:
     "tenant_id": "tenant-uuid",
     "classification": "internal",
     "embedding_model": "voyage-3",
-    "embedded_at": "2026-04-20T..."
+    "embedded_at": "ISO-8601 timestamp"
 }
 ```
 
@@ -608,8 +608,8 @@ All AI outputs are strict JSON conforming to the capability's schema. Tools like
 ### Confidence Elicitation
 
 Two approaches:
-1. **Ensemble**: run the prompt 3–5 times at temperature 0.3, measure agreement
-2. **Self-reported with calibration**: ask the model for its confidence, then apply a learned calibration curve (confidence of 0.9 from raw output might map to 0.78 true probability)
+1. **Ensemble**: run the prompt multiple times at low temperature, measure agreement
+2. **Self-reported with calibration**: ask the model for its confidence, then apply a learned calibration curve (raw reported confidence mapped to empirical probability)
 
 Pick based on capability. Self-reported is cheaper; ensemble is more accurate.
 
@@ -623,75 +623,61 @@ Use Claude's extended thinking mode for complex reasoning tasks. Store the think
 
 ### Default Recommendations
 
-| Capability class | Recommended model |
-|------------------|-------------------|
-| High-accuracy financial reasoning (3-way match, anomaly detection) | Claude Opus 4.7 or Claude Sonnet 4.6 |
-| High-volume classification (expense categorization, ticket triage) | Claude Haiku 4.5 or local model |
-| Document extraction (OCR) | Claude Sonnet 4.6 with vision |
-| Natural language to query | Claude Sonnet 4.6 |
-| Copilot conversations | Claude Sonnet 4.6 |
-| Embeddings | Voyage AI `voyage-3` or OpenAI `text-embedding-3-large` |
-
-### Why Claude as Default
-
-- Strong reasoning on multi-step financial logic
-- Reliable structured JSON output via tool use
-- Extended thinking for complex cases with stored chain-of-thought
-- Prompt caching for repeated context (Chart of Accounts, policies) — material cost reduction
-- Clear data-handling contracts (no training on customer data)
+Per-capability model selection is required; see [findings/technology-choices.md](../findings/technology-choices.md). The default recommendation starts from Claude family models (strong reasoning, reliable structured JSON output via tool use, extended thinking, prompt caching, clear data-handling contracts) with per-capability evaluation against alternatives (OpenAI GPT-4 family, Google Gemini family, open-weights models like Llama/Qwen).
 
 ### Multi-Provider Strategy
 
 `AI Model Configuration` DocType allows per-capability provider routing. Consider:
 
-- **Primary**: Claude Sonnet 4.6 (balance of quality and cost)
-- **Fallback**: Claude Haiku 4.5 (cheap, fast, still capable) if primary times out
+- **Primary**: a capable mid-tier model (balance of quality and cost)
+- **Fallback**: a fast/cheap model if primary times out
 - **Local option**: for tenants where data cannot leave premises
 
-Switching is configuration, not code. A tenant can move from Anthropic to local models by updating one DocType.
+Switching is configuration, not code.
 
 ### Prompt Caching
 
 For capabilities with stable context (chart of accounts, policies, master data):
 - Use Anthropic prompt caching to cache the stable prefix
-- 90% cost reduction on cached reads, 25% on cache writes
-- Cache warms naturally as capability runs through the day
+- Cached reads are substantially cheaper than uncached; cache writes carry a small premium
+- Cache warms naturally as the capability is exercised
 
 ---
 
-## Performance and Cost
+## Performance
 
 ### Latency Targets
 
-| Pattern | Target | Hard cap |
-|---------|--------|----------|
-| Sync advisory (T0 in form validate) | 2s p95 | 5s timeout |
-| Async draft creation | 60s p95 | 5 min timeout |
-| Batch anomaly scan | 10 min per 100K records | — |
-| Copilot chat | 3s first-token latency | — |
-| Natural-language query | 5s end-to-end | 15s timeout |
+Latency targets are defined per pattern as operational SLAs:
 
-### Cost Modeling
+| Pattern | Relative target |
+|---------|-----------------|
+| Sync advisory (T0 in form validate) | Short p95; short timeout |
+| Async draft creation | Bounded p95; hard timeout |
+| Batch anomaly scan | Throughput target per record |
+| Copilot chat | Short first-token latency |
+| Natural-language query | Bounded end-to-end; hard timeout |
 
-Typical cost drivers:
-- LLM inference (80% of cost at scale)
-- Embedding generation (10%)
-- Vector store ops (5%)
-- Supporting infrastructure (5%)
+Specific numeric targets are set in operational SLAs, not in this architecture document.
 
-Early estimate for a 250-person company running the Phase 1+2 capabilities:
-- ~$2K–$8K/month in LLM costs depending on volume and model mix
-- Prompt caching reduces this 30–50%
-- Local models reduce variable cost but require infrastructure
+### Cost Drivers
 
-Budget tracking lives in `AI Model Configuration` with monthly alerts.
+Typical cost drivers (qualitative ranking):
+- LLM inference (dominant at scale)
+- Embedding generation
+- Vector store operations
+- Supporting infrastructure
+
+Prompt caching reduces inference cost for capabilities with stable context. Local models reduce variable inference cost but add operational burden.
+
+Budget tracking lives in `AI Model Configuration` with alerts.
 
 ### Scaling
 
 - Frappe's existing RQ background job system handles async AI workloads
 - Separate queue for AI jobs so slow AI calls don't back up other work
-- Per-capability rate limiting prevents runaway costs from bugs
-- Circuit breaker: on provider errors, short-circuit for 60s before retry
+- Per-capability rate limiting prevents runaway consumption from bugs
+- Circuit breaker: on provider errors, short-circuit before retry
 
 ---
 
@@ -739,7 +725,7 @@ Key metrics to emit (Prometheus / OpenTelemetry):
 
 - `ai_invocations_total{capability, tier, outcome}`
 - `ai_latency_seconds{capability, provider}`
-- `ai_cost_usd{capability, provider, model}`
+- `ai_spend{capability, provider, model}`
 - `ai_confidence_bucket{capability, confidence_range}`
 - `ai_review_queue_size{capability, priority}`
 - `ai_policy_envelope_breach_total{policy}`
@@ -749,7 +735,7 @@ Key metrics to emit (Prometheus / OpenTelemetry):
 
 - **Operational**: latency, error rates, queue depth, provider health
 - **Governance**: accuracy by capability, confidence distributions, review outcomes
-- **Cost**: spend by capability, provider, tenant; trend vs budget
+- **Spend**: utilization by capability, provider, tenant; trend vs budget
 - **Audit**: recent high-value actions, escalations, rejections
 
 ### Alerting
@@ -758,7 +744,7 @@ Page the on-call team when:
 - Accuracy drops below SLA for any capability
 - Policy envelope breached (should never happen; if it does, critical bug)
 - Kill switch activated
-- Cost exceeds budget threshold
+- Spend exceeds budget threshold
 - Review queue SLA deadlines missed
 
 ---
@@ -775,25 +761,23 @@ In Frappe's multi-tenant setup, each site has its own database. AI configuration
 ### Development/Staging/Production
 
 - **Development**: mocked LLM responses; never hit production APIs from dev
-- **Staging**: real LLM calls against non-production models (e.g., Haiku for cost); shadow-mode against production data copies (anonymized)
+- **Staging**: real LLM calls against non-production model selections; shadow-mode against anonymized production data copies
 - **Production**: full capability with all safety pillars active
 
 ### Model Pinning
 
-Never use "latest" aliases in production. Pin exact model versions:
-- `claude-sonnet-4-6` not `claude-sonnet-latest`
-- Version upgrade is a deliberate change-management event with re-validation
+Never use "latest" aliases in production. Pin exact model versions. Version upgrade is a deliberate change-management event with re-validation.
 
 ### Migration Strategy for Model Upgrades
 
 When upgrading from one model version to another:
 1. Deploy new version in shadow mode (runs alongside existing, no actions)
-2. Compare outputs over 30+ days
+2. Compare outputs over an extended period
 3. Re-run golden dataset
 4. Re-run accuracy SLA tests
 5. Governance committee approves cutover
-6. Canary rollout: 1% → 10% → 100%
-7. Old version kept hot for 30 days in case of rollback
+6. Canary rollout with escalating traffic share
+7. Old version kept hot as a rollback path for a bounded period
 
 ---
 
@@ -854,11 +838,11 @@ class TestBankReconAI(FrappeTestCase):
 
 If starting from zero:
 
-1. **Week 1–2**: `AI Settings`, `AI Capability`, `AI Model Configuration`, `AI Audit Log` DocTypes. Kill switch. Model provider client with retry/timeout/circuit-breaker.
-2. **Week 3–4**: Redaction layer. Prompt template system. JSON output validation. Embedding pipeline + vector store setup.
-3. **Week 5–6**: `AI Policy` + policy engine. Confidence gate. First capability: natural-language query (pure T0, simple to audit).
-4. **Week 7–10**: Second capability: invoice OCR (T1). UI suggestion panel. Review queue workspace.
-5. **Week 11–14**: Third capability: bank recon auto-match (T1 progressing to T2). Full observability dashboards.
-6. **Week 15+**: Expand capability catalog per [roadmap.md](roadmap.md).
+1. **Foundation step**: `AI Settings`, `AI Capability`, `AI Model Configuration`, `AI Audit Log` DocTypes. Kill switch. Model provider client with retry/timeout/circuit-breaker.
+2. **Support step**: Redaction layer. Prompt template system. JSON output validation. Embedding pipeline + vector store setup.
+3. **Policy step**: `AI Policy` + policy engine. Confidence gate. First capability: natural-language query (pure T0, simple to audit).
+4. **First T1 capability**: invoice OCR. UI suggestion panel. Review queue workspace.
+5. **First T1→T2 capability**: bank recon auto-match. Full observability dashboards.
+6. **Subsequent capabilities**: expand per [roadmap.md](roadmap.md).
 
 See [patterns.md](patterns.md) for code-level implementation shape.
